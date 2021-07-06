@@ -19,7 +19,7 @@ import Servant.Auth.Server.Internal.Types
 
 import Servant.Server.Internal (DelayedIO, addAuthCheck, withRequest)
 
-instance ( n ~ 'S ('S 'Z)
+instance ( n ~ 'S 'Z
          , HasServer (AddSetCookiesApi n api) ctxs, AreAuths auths ctxs v
          , HasServer api ctxs -- this constraint is needed to implement hoistServer
          , AddSetCookies n (ServerT api Handler) (ServerT (AddSetCookiesApi n api) Handler)
@@ -39,7 +39,7 @@ instance ( n ~ 'S ('S 'Z)
           (fmap go subserver `addAuthCheck` authCheck)
 
     where
-      authCheck :: DelayedIO (AuthResult v, SetCookieList ('S ('S 'Z)))
+      authCheck :: DelayedIO (AuthResult v, SetCookieList ('S 'Z))
       authCheck = withRequest $ \req -> liftIO $ do
         authResult <- runAuthCheck (runAuths (Proxy :: Proxy auths) context) req
         cookies <- makeCookies authResult
@@ -51,17 +51,15 @@ instance ( n ~ 'S ('S 'Z)
       cookieSettings :: CookieSettings
       cookieSettings = getContextEntry context
 
-      makeCookies :: AuthResult v -> IO (SetCookieList ('S ('S 'Z)))
+      makeCookies :: AuthResult v -> IO (SetCookieList ('S 'Z))
       makeCookies authResult = do
-        xsrf <- makeXsrfCookie cookieSettings
-        fmap (Just xsrf `SetCookieCons`) $
-          case authResult of
-            (Authenticated v) -> do
-              ejwt <- makeSessionCookie cookieSettings jwtSettings v
-              case ejwt of
-                Nothing  -> return $ Nothing `SetCookieCons` SetCookieNil
-                Just jwt -> return $ Just jwt `SetCookieCons` SetCookieNil
-            _ -> return $ Nothing `SetCookieCons` SetCookieNil
+        case authResult of
+          (Authenticated v) -> do
+            ejwt <- makeSessionCookie cookieSettings jwtSettings v
+            case ejwt of
+              Nothing  -> return $ Nothing `SetCookieCons` SetCookieNil
+              Just jwt -> return $ Just jwt `SetCookieCons` SetCookieNil
+          _ -> return $ Nothing `SetCookieCons` SetCookieNil
 
       go :: (AuthResult v -> ServerT api Handler)
          -> (AuthResult v, SetCookieList n)
